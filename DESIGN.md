@@ -327,7 +327,8 @@ def normalize_record(raw: RawCompany) -> NormalizedCompany
 # validate.py
 def validate_record(rec: NormalizedCompany) -> ValidationResult
 # ValidationResult: is_valid, issues: list[{field, code, message}]
-# codes: invalid_email | invalid_url | invalid_phone | missing_required | bad_characters ...
+# codes (stable, UPPER_SNAKE, closed set): MISSING_COMPANY_NAME | INVALID_COMPANY_NAME |
+#   INVALID_EMAIL | INVALID_DOMAIN | INVALID_PHONE | MISSING_LOCATION | INVALID_RECORD
 
 # dedupe.py
 def find_duplicates(records: list[NormalizedCompany])
