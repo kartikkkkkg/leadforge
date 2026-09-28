@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     leadforge_provider: str = "demo"
     leadforge_http_api_key: str | None = None
     leadforge_http_api_base_url: str | None = None
+    leadforge_http_timeout_s: float = 10.0
 
     # --- AI enrichment (optional; the app fully works without it) ---
     leadforge_ai_enabled: bool = False
