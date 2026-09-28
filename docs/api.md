@@ -1,0 +1,23 @@
+# API Reference
+
+> Full endpoint behavior lands in Phase 6. Interactive docs: `GET /docs` (Swagger)
+> once the backend runs.
+
+Base path: `/api`. Errors are structured as `{"detail": ..., "code": ...}`.
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/research/jobs` | Create a research job → `202 Accepted` (never blocks) |
+| `GET` | `/api/research/jobs` | List jobs (paginated) |
+| `GET` | `/api/research/jobs/{id}` | Job detail + live progress counters |
+| `GET` | `/api/research/jobs/{id}/results` | Query results: search, filter, sort, paginate |
+| `GET` | `/api/research/jobs/{id}/results/{result_id}` | Record detail (explainability view) |
+| `DELETE` | `/api/research/jobs/{id}/results/{result_id}` | Delete a record → `204` |
+| `POST` | `/api/research/jobs/{id}/export?format=csv\|xlsx` | Download the dataset |
+| `GET` | `/api/research/jobs/{id}/validation-report` | Validation/dedupe summary |
+| `GET` | `/api/providers/health` | Provider statuses (Settings page) |
+| `GET` | `/api/health` | Liveness probe |
+| `POST` | `/api/demo/seed` | Load synthetic dataset |
+| `POST` | `/api/demo/reset` | Wipe demo data |
+
+See `DESIGN.md` §4 for the request/response contract.

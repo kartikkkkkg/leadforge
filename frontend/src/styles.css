@@ -1,0 +1,19 @@
+/* LeadForge dashboard styles — Phase 8.
+   Clean, neutral, table-centric. No gradients, no 3D, no animation theater. */
+:root {
+  --bg: #ffffff;
+  --surface: #f7f7f8;
+  --text: #1a1a1a;
+  --muted: #6b7280;
+  --accent: #2563eb;
+  --border: #e5e7eb;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}

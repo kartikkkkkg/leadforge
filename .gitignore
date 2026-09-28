@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+dist/
+*.local
+
+# Environment & secrets — never commit real values
+.env
+.env.*
+!.env.example
+
+# Databases (local dev)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+
+# Build artifacts
+*.log
