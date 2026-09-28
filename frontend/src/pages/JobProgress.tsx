@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, type JobRead } from "../api/client";
+import ExportButtons from "../components/ExportButtons";
 import PipelineStages from "../components/PipelineStages";
 import StatusBadge from "../components/StatusBadge";
 import StatCard from "../components/StatCard";
@@ -88,6 +89,7 @@ export default function JobProgress() {
               View Results
             </Link>
           ) : null}
+          <ExportButtons jobId={job.id} exportable={job.status === "completed"} />
           <Link to="/dashboard" className="btn btn-secondary">
             Dashboard
           </Link>

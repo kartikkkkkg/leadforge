@@ -148,6 +148,16 @@ export interface ValidationReport {
   issues_by_field: Record<string, number>;
 }
 
+/** Export formats served by POST /research/jobs/{id}/export. */
+export type ExportFormat = "csv" | "xlsx";
+
+export interface ExportDownload {
+  /** Raw file bytes from the backend export service. */
+  blob: Blob;
+  /** Server-provided filename, e.g. leadforge_saas_ab12cd34.csv. */
+  filename: string;
+}
+
 export interface ProviderHealth {
   name: string;
   /** available | not_configured | disabled | configured | error */
@@ -235,6 +245,72 @@ function query(params: Record<string, string | number | undefined>): string {
   return s ? `?${s}` : "";
 }
 
+function networkError(err: unknown): ApiError {
+  return new ApiError(
+    `Cannot reach the LeadForge API (${err instanceof Error ? err.message : "network failure"}). Is the backend running?`,
+    "network_error",
+    0,
+  );
+}
+
+function errorFromBody(res: Response, body: unknown): ApiError {
+  const b = (body ?? {}) as { detail?: unknown; code?: unknown };
+  return new ApiError(
+    typeof b.detail === "string" ? b.detail : `Request failed (${res.status})`,
+    typeof b.code === "string" ? b.code : "error",
+    res.status,
+  );
+}
+
+/** Binary counterpart of {@link request}: returns the raw blob plus the
+ * server-provided filename from Content-Disposition. Never parsed as JSON.
+ */
+async function requestBlob(path: string, init?: RequestInit): Promise<ExportDownload> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, init);
+  } catch (err) {
+    throw networkError(err);
+  }
+  if (!res.ok) {
+    let body: unknown = null;
+    try {
+      body = await res.json();
+    } catch {
+      /* non-JSON error body */
+    }
+    throw errorFromBody(res, body);
+  }
+  const blob = await res.blob();
+  const disposition = res.headers.get("content-disposition");
+  const match = /filename="([^"]+)"/.exec(disposition ?? "");
+  return { blob, filename: match ? match[1] : "leadforge_export" };
+}
+
+/**
+ * Fetch an export and trigger a real browser download via a temporary
+ * anchor. Returns the server-provided filename. The backend export service
+ * is the single source of truth — no CSV/XLSX is ever generated here.
+ */
+export async function downloadExportFile(
+  jobId: string,
+  format: ExportFormat,
+): Promise<string> {
+  const { blob, filename } = await api.exportJob(jobId, format);
+  const url = URL.createObjectURL(blob);
+  try {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+  return filename;
+}
+
 /* ------------------------------------------------------------------ */
 /* Endpoints                                                           */
 /* ------------------------------------------------------------------ */
@@ -279,4 +355,11 @@ export const api = {
 
   validationReport: (jobId: string) =>
     request<ValidationReport>(`/research/jobs/${jobId}/validation-report`),
+
+  /** Fetch a job export as a binary blob (+ server filename). Prefer
+   * {@link downloadExportFile} for an actual browser download. */
+  exportJob: (jobId: string, format: ExportFormat) =>
+    requestBlob(`/research/jobs/${jobId}/export?format=${format}`, {
+      method: "POST",
+    }),
 };

@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { ApiError, api } from "../api/client";
+import { describe, expect, it, vi } from "vitest";
+import { ApiError, api, downloadExportFile } from "../api/client";
 import { jsonResponse, lastFetchUrl, mockFetch, mockRoutes } from "../test/helpers";
 
 describe("api client", () => {
@@ -82,5 +82,114 @@ describe("api client", () => {
     const r = await api.validationReport("job-1");
     expect(r.valid).toBe(4);
     expect(r.issues_by_field).toEqual({ MISSING_WEBSITE: 1 });
+  });
+});
+
+describe("api.exportJob", () => {
+  function blobResponse(
+    body: BodyInit,
+    contentType: string,
+    filename?: string,
+    status = 200,
+  ): Response {
+    const headers: Record<string, string> = { "Content-Type": contentType };
+    if (filename) headers["Content-Disposition"] = `attachment; filename="${filename}"`;
+    return new Response(body, { status, headers });
+  }
+
+  it("posts to the export endpoint and returns blob + server filename", async () => {
+    const spy = mockFetch(() =>
+      blobResponse("a,b\n1,2\n", "text/csv; charset=utf-8", "leadforge_saas_ab12cd34.csv"),
+    );
+    const dl = await api.exportJob("job-1", "csv");
+    const url = lastFetchUrl(spy);
+    expect(url).toContain("/api/research/jobs/job-1/export?format=csv");
+    expect(spy.mock.calls[0][1]?.method).toBe("POST");
+    expect(dl.filename).toBe("leadforge_saas_ab12cd34.csv");
+    expect(await dl.blob.text()).toBe("a,b\n1,2\n");
+  });
+
+  it("returns binary XLSX bytes untouched (never parsed as JSON)", async () => {
+    const bytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00]);
+    mockFetch(() =>
+      blobResponse(
+        bytes,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "leadforge_saas_ab12cd34.xlsx",
+      ),
+    );
+    const dl = await api.exportJob("job-1", "xlsx");
+    expect(dl.filename).toBe("leadforge_saas_ab12cd34.xlsx");
+    expect(new Uint8Array(await dl.blob.arrayBuffer())).toEqual(bytes);
+  });
+
+  it("falls back to a default filename without Content-Disposition", async () => {
+    mockFetch(() => blobResponse("a,b", "text/csv; charset=utf-8"));
+    const dl = await api.exportJob("job-1", "csv");
+    expect(dl.filename).toBe("leadforge_export");
+  });
+
+  it("surfaces export errors as ApiError with the backend code", async () => {
+    mockFetch(() =>
+      jsonResponse({ detail: "job 'job-1' is 'queued'", code: "job_not_runnable" }, 409),
+    );
+    await expect(api.exportJob("job-1", "csv")).rejects.toMatchObject({
+      code: "job_not_runnable",
+      status: 409,
+    });
+  });
+
+  it("surfaces a 404 for unknown jobs", async () => {
+    mockFetch(() => jsonResponse({ detail: "no research job 'nope'", code: "job_not_found" }, 404));
+    await expect(api.exportJob("nope", "xlsx")).rejects.toMatchObject({
+      code: "job_not_found",
+      status: 404,
+    });
+  });
+});
+
+describe("downloadExportFile", () => {
+  it("triggers a browser download with the server-provided filename", async () => {
+    const createObjectURL = vi.fn(() => "blob:mock-url");
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
+    let clicked: HTMLAnchorElement | null = null;
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      clicked = this;
+    });
+    mockFetch(() =>
+      new Response("a,b\n1,2\n", {
+        status: 200,
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": 'attachment; filename="leadforge_saas_ab12cd34.csv"',
+        },
+      }),
+    );
+
+    const filename = await downloadExportFile("job-1", "csv");
+
+    expect(filename).toBe("leadforge_saas_ab12cd34.csv");
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(clicked).not.toBeNull();
+    expect(clicked!.download).toBe("leadforge_saas_ab12cd34.csv");
+    expect(clicked!.href).toBe("blob:mock-url");
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:mock-url");
+  });
+
+  it("propagates export failures instead of downloading", async () => {
+    const createObjectURL = vi.fn(() => "blob:mock-url");
+    vi.stubGlobal("URL", { createObjectURL, revokeObjectURL: vi.fn() });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    mockFetch(() =>
+      jsonResponse({ detail: "job 'job-1' is 'queued'", code: "job_not_runnable" }, 409),
+    );
+    await expect(downloadExportFile("job-1", "csv")).rejects.toMatchObject({
+      code: "job_not_runnable",
+    });
+    expect(createObjectURL).not.toHaveBeenCalled();
+    expect(click).not.toHaveBeenCalled();
   });
 });

@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import {
   ApiError,
   api,
+  type JobRead,
   type ResultRead,
   type ResultsPage,
   type ResultsQuery,
@@ -10,6 +11,7 @@ import {
 } from "../api/client";
 import DataTable from "../components/DataTable";
 import EmptyState from "../components/EmptyState";
+import ExportButtons from "../components/ExportButtons";
 import ScoreBadge from "../components/ScoreBadge";
 import StatusBadge from "../components/StatusBadge";
 import SyntheticBadge from "../components/SyntheticBadge";
@@ -68,6 +70,7 @@ export default function Results() {
   const [applied, setApplied] = useState<Filters>(INITIAL);
   const [page, setPage] = useState<ResultsPage | null>(null);
   const [report, setReport] = useState<ValidationReport | null>(null);
+  const [job, setJob] = useState<JobRead | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -97,6 +100,23 @@ export default function Results() {
     load(applied);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applied, id]);
+
+  // Job status gates the export buttons (only completed jobs are exportable).
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    api
+      .getJob(id)
+      .then((j) => {
+        if (!cancelled) setJob(j);
+      })
+      .catch(() => {
+        if (!cancelled) setJob(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   function applyFilters(e?: React.FormEvent) {
     e?.preventDefault();
@@ -166,9 +186,12 @@ export default function Results() {
     <div className="page">
       <div className="page-head">
         <h1>Results</h1>
-        <Link to={`/research/${id}`} className="btn btn-secondary">
-          Job Progress
-        </Link>
+        <div className="page-actions">
+          <ExportButtons jobId={id} exportable={job?.status === "completed"} />
+          <Link to={`/research/${id}`} className="btn btn-secondary">
+            Job Progress
+          </Link>
+        </div>
       </div>
 
       {report ? (
