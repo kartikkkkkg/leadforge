@@ -42,8 +42,8 @@ make run-demo   # same job, no browser; prints the stage summary
 
 ## Notes
 
-- **Export is intentionally deferred** — there is no export endpoint or download
-  button yet. Do not demo one.
+- **Export** — completed jobs offer CSV and styled XLSX downloads (backend endpoint,
+  CLI, and results-page buttons). Safe to demo.
 - Tests / headless runs should use demo delay `0` so jobs complete instantly.
 - `POST /api/demo/seed` → `{"companies": 100}`; `POST /api/demo/reset`
   (optional `{"reseed": true}`) → deletion counts. See `docs/api.md`.

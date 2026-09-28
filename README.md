@@ -18,7 +18,7 @@ scored, exportable dataset (CSV/XLSX) instead of a hand-built spreadsheet.
 ## 60-second overview
 
 - **What can I see?** Dashboard → research form → live pipeline → filterable results table →
-  per-record explainability view (styled Excel export deferred to a later phase).
+  per-record explainability view → CSV / styled Excel export downloads.
 - **How do I run it?** `scripts/dev.sh` (SQLite, zero setup) or `docker compose up`.
 - **Demo?** `make seed-demo && make run-demo` — 100 synthetic companies, no API keys.
 - **Stack:** FastAPI + SQLAlchemy + Pandas + openpyxl · React + TypeScript + Vite ·
@@ -87,7 +87,11 @@ The **New Research** form has a *Demo delay (ms)* field (default `120`, `0` disa
 it pauses between real pipeline stages so progress is visibly staged. Only the Demo
 provider is affected; use `0` for tests/headless runs.
 
-**Export is intentionally deferred** — no export endpoint or download button exists yet.
+**Export** — completed jobs offer CSV and styled XLSX downloads via the backend
+(`POST /api/research/jobs/{id}/export?format=csv|xlsx`), the CLI, and the
+results-page download buttons. CSV uses UTF-8 with BOM; XLSX contains
+Leads / Research Summary / Parameters sheets with formatting, filters, and
+freeze panes.
 
 ## AI enrichment (optional)
 
