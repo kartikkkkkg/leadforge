@@ -15,5 +15,6 @@ VOLUME ["/app/data"]
 
 EXPOSE 8000
 
-# Default: serve the API. docker-compose overrides this for the worker service.
+# Default: serve the API. Jobs run in-process via FastAPI BackgroundTasks
+# (there is no separate worker service); see DESIGN.md.
 CMD ["uvicorn", "leadforge.main:app", "--host", "0.0.0.0", "--port", "8000"]

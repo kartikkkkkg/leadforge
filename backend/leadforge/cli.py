@@ -6,8 +6,12 @@ Commands:
     run-demo    run the research pipeline headless
     export      export a completed job's dataset (CSV or styled XLSX)
     serve       run the API server
-    worker      run the background job worker (not implemented; Phase 6 uses
-                in-process BackgroundTasks instead)
+    worker      explain why no separate worker process exists (DESIGN.md A2)
+
+Background execution: research jobs run in-process on the API server via
+FastAPI BackgroundTasks (``services/jobs.run_job``). By design there is no
+Celery/Redis queue and no separate worker container — see DESIGN.md A2.
+``docker-compose.yml`` therefore runs only db + backend + frontend.
 """
 
 from __future__ import annotations
@@ -118,6 +122,21 @@ def _cmd_export(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_worker(args: argparse.Namespace) -> int:
+    # There is deliberately no background worker process: the API server
+    # executes research jobs in-process via FastAPI BackgroundTasks
+    # (DESIGN.md A2 — no Celery/Redis by design). This command exists so the
+    # answer is discoverable instead of a "not implemented" stub.
+    print(
+        "LeadForge runs research jobs in-process: the API server executes the "
+        "pipeline via FastAPI BackgroundTasks (DESIGN.md A2 — no Celery/Redis "
+        "by design), so no separate worker process or container is required.\n"
+        "Use `python -m leadforge serve` to run the API server, or "
+        "`python -m leadforge run-demo` for a headless pipeline run."
+    )
+    return 0
+
+
 def _skeleton_handler(args: argparse.Namespace) -> int:
     if args.command == "serve":
         import uvicorn
@@ -134,6 +153,8 @@ def _skeleton_handler(args: argparse.Namespace) -> int:
         return _cmd_run_demo(args)
     if args.command == "export":
         return _cmd_export(args)
+    if args.command == "worker":
+        return _cmd_worker(args)
     print(
         f"LeadForge: '{args.command}' "
         "is not implemented in this phase."
@@ -172,7 +193,14 @@ def build_parser() -> argparse.ArgumentParser:
     serve_p.add_argument("--host", default="127.0.0.1")
     serve_p.add_argument("--port", type=int, default=8000)
 
-    sub.add_parser("worker", help="Run the background job worker (Phase 6).")
+    # No separate worker process exists by design: research jobs run in-process
+    # on the API server via FastAPI BackgroundTasks (DESIGN.md A2 — no
+    # Celery/Redis). `python -m leadforge worker` explains this; the compose
+    # stack therefore runs only db + backend + frontend.
+    sub.add_parser(
+        "worker",
+        help="Explain why LeadForge needs no separate worker process.",
+    )
 
     return parser
 
