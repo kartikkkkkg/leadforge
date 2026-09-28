@@ -31,3 +31,8 @@ dist/
 
 # Build artifacts
 *.log
+
+# Local databases (SQLite default; never commit data files)
+*.db
+*.sqlite
+*.sqlite3

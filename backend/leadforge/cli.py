@@ -15,6 +15,13 @@ import argparse
 
 
 def _skeleton_handler(args: argparse.Namespace) -> int:
+    if args.command == "serve":
+        import uvicorn
+
+        from .main import app
+
+        uvicorn.run(app, host=args.host, port=args.port)
+        return 0
     print(
         f"LeadForge Phase 2 skeleton: '{args.command}' "
         "will be implemented in a later phase."

@@ -43,6 +43,34 @@ scripts/dev.sh              # backend on :8000, frontend on :5173
 docker compose up
 ```
 
+## API
+
+Serve the FastAPI backend locally:
+
+```bash
+cd backend && ../.venv/bin/python -m leadforge serve   # http://127.0.0.1:8000
+```
+
+Interactive docs: `http://127.0.0.1:8000/docs` (OpenAPI at `/openapi.json`).
+
+Key endpoints (see `DESIGN.md` §2 for the full contract):
+
+| Method & path | Purpose |
+|---|---|
+| `GET /api/health` | Liveness check |
+| `GET /api/providers/health` | Demo / HTTP / AI / database status (honest: unconfigured ≠ healthy) |
+| `POST /api/research/jobs` | Create a research job → `202` with the queued job; pipeline runs in the background |
+| `GET /api/research/jobs` | List jobs (paginated, recent first) |
+| `GET /api/research/jobs/{id}` | Job + live counters/stage (poll while running) |
+| `GET /api/research/jobs/{id}/results` | Filterable, sortable, paginated results table |
+| `GET /api/research/jobs/{id}/results/{result_id}` | Full record detail |
+| `DELETE /api/research/jobs/{id}/results/{result_id}` | Delete a record → `204` |
+| `GET /api/research/jobs/{id}/validation-report` | valid / invalid / duplicate counts + issue codes |
+
+Errors use `{detail, code}` (`job_not_found`, `invalid_request`,
+`provider_not_configured`, `job_not_runnable`, `internal_error`). `progress_pct`
+is a coarse stage milestone, not an exact completion estimate.
+
 ## Demo mode
 
 ```bash
