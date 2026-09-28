@@ -1,13 +1,24 @@
-"""Pipeline orchestration: DISCOVER -> NORMALIZE -> VALIDATE -> DEDUPLICATE -> SCORE -> STORE.
+"""Pipeline orchestration: DISCOVER -> EXTRACT -> NORMALIZE -> VALIDATE ->
+DEDUPLICATE -> ENRICH -> SCORE -> STORE.
 
 The runner wires the provider layer (Phase 5) to the deterministic processing
 stages (Phase 4) and persists via the existing SQLAlchemy models. Stages stay
 independent — the runner *calls* the stage functions, never reimplements them.
 
+AI enrichment (Phase 10)
+------------------------
+ENRICH is optional and strictly additive. It may attach tagged, AI-derived
+fields (``{"value": ..., "ai_derived": True}``) to a result row — it never
+modifies normalized records, never influences validation, deduplication, or
+completeness scoring, and never converts AI output into source facts. When no
+AI provider is enabled (the default) or the job did not request AI, ENRICH is
+a no-op milestone. An AI failure degrades to ``ai_enriched=False``; the job
+still completes.
+
 Transaction boundaries (documented choice)
 ------------------------------------------
-* Stage execution (discover/normalize/validate/dedupe/score) is side-effect
-  free: no database writes happen until STORE.
+* Stage execution (discover/extract/normalize/validate/dedupe/enrich/score) is
+  side-effect free: no database writes happen until STORE.
 * STORE runs in a **single transaction**: companies, results, and rejected
   records are committed atomically. A store failure rolls everything back —
   no corrupt partial state.
@@ -15,7 +26,7 @@ Transaction boundaries (documented choice)
   milestones are committed in **separate small transactions**, so a failed job
   is always recorded as failed even when the store transaction rolled back.
 
-No AI enrichment, no exports, no frontend coupling here.
+No exports, no frontend coupling here.
 """
 
 from __future__ import annotations
@@ -27,6 +38,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 
 from .. import models
+from ..ai import AIProvider, get_ai_provider, tag_ai_fields
 from ..db import get_engine, session_scope
 from ..pipeline.stages import (
     completeness_score,
@@ -42,11 +54,13 @@ log = logging.getLogger(__name__)
 # fraction — the counters (discovered/invalid/duplicates/accepted) carry the
 # exact numbers.
 _STAGE_PROGRESS: dict[str, int] = {
-    "DISCOVER": 15,
-    "NORMALIZE": 30,
-    "VALIDATE": 45,
+    "DISCOVER": 12,
+    "EXTRACT": 24,
+    "NORMALIZE": 36,
+    "VALIDATE": 48,
     "DEDUPLICATE": 60,
-    "SCORE": 75,
+    "ENRICH": 70,
+    "SCORE": 80,
     "STORE": 90,
 }
 _DONE_STAGE = "DONE"
@@ -93,17 +107,19 @@ class JobRunner:
 
 
 class PipelineRunner(JobRunner):
-    """Executes a research job through the six pipeline stages."""
+    """Executes a research job through the eight pipeline stages."""
 
     def __init__(
         self,
         engine=None,
         provider: ResearchProvider | None = None,
+        ai_provider: AIProvider | None = None,
         delay_ms: int = 0,
         on_progress: ProgressCallback | None = None,
     ) -> None:
         self._engine = engine or get_engine()
         self._provider = provider
+        self._ai_provider = ai_provider
         self._delay_ms = max(0, delay_ms)
         self._on_progress = on_progress
 
@@ -117,12 +133,17 @@ class PipelineRunner(JobRunner):
         spec = self._start_job(job_id)  # marks running; raises if not runnable
         try:
             raws = await self._discover(spec)
+            extracted = self._extract(spec, raws)  # aligned with `normalized`
             normalized = self._normalize(spec, raws)
+            payload_by_id = {
+                id(record): extracted[i] for i, record in enumerate(normalized)
+            }
             valid, invalid, raw_by_index = self._validate(spec, normalized, raws)
             deduped = self._deduplicate(spec, valid)
+            enriched = await self._enrich(spec, deduped.unique, payload_by_id)
             scored = self._score(spec, deduped.unique)
             stats = await self._store(
-                spec, raws, valid, invalid, raw_by_index, deduped, scored
+                spec, raws, valid, invalid, raw_by_index, deduped, enriched, scored
             )
         except Exception as exc:
             self._mark_failed(job_id, exc)
@@ -160,6 +181,7 @@ class PipelineRunner(JobRunner):
                 "keywords": job.keywords,
                 "requested_leads": job.requested_leads,
                 "provider_name": job.provider,
+                "enable_ai": bool(job.enable_ai),
             }
         return spec
 
@@ -228,6 +250,37 @@ class PipelineRunner(JobRunner):
         await self._maybe_delay()
         return list(raws)
 
+    def _extract(
+        self, spec: dict[str, Any], raws: list[RawCompany]
+    ) -> list[dict[str, Any]]:
+        """Build the deterministic enrichment input for each raw record.
+
+        Concatenates the record's already-available public fields into a
+        ``source_text`` blob the ENRICH stage may feed to the AI provider.
+        Purely deterministic — no network, no invention, no mutation.
+        """
+        extracted = []
+        for raw in raws:
+            data = raw.model_dump()
+            parts = [
+                str(data.get(key))
+                for key in (
+                    "company_name",
+                    "website",
+                    "industry",
+                    "address",
+                    "city",
+                    "region",
+                    "country",
+                    "phone",
+                    "public_email",
+                )
+                if data.get(key)
+            ]
+            extracted.append({"source_text": " | ".join(parts)})
+        self._set_progress(spec["job_id"], "EXTRACT")
+        return extracted
+
     def _normalize(self, spec: dict[str, Any], raws: list[RawCompany]) -> list[dict[str, Any]]:
         normalized = [normalize_record(raw.model_dump()) for raw in raws]
         self._set_progress(spec["job_id"], "NORMALIZE")
@@ -259,6 +312,78 @@ class PipelineRunner(JobRunner):
         )
         return deduped
 
+    async def _enrich(
+        self,
+        spec: dict[str, Any],
+        unique: list[dict[str, Any]],
+        payload_by_id: dict[int, dict[str, Any]],
+    ) -> list[dict[str, Any] | None]:
+        """Optionally enrich each unique record with tagged AI-derived fields.
+
+        Returns a list aligned with ``unique``: a tagged ``ai_fields`` dict
+        per enriched record, ``None`` where nothing was produced. The stage is
+        a no-op when the job did not request AI or no AI provider is enabled.
+        AI failures degrade per-record to ``None`` — the job never fails
+        because of AI. Normalized records are never mutated here.
+        """
+        job_id = spec["job_id"]
+        empty: list[dict[str, Any] | None] = [None] * len(unique)
+        if not spec.get("enable_ai"):
+            self._set_progress(job_id, "ENRICH")
+            return empty
+        provider = self._ai_provider or get_ai_provider()
+        if not provider.enabled:
+            log.info(
+                "job %s requested AI enrichment but no AI provider is enabled",
+                job_id,
+            )
+            self._set_progress(job_id, "ENRICH")
+            return empty
+
+        # ``unique`` holds the same dict objects as the normalized list, so the
+        # identity map built in run() finds each record's extraction payload.
+        results: list[dict[str, Any] | None] = []
+        for record in unique:
+            results.append(
+                await self._enrich_one(
+                    provider, record, payload_by_id.get(id(record), {})
+                )
+            )
+        self._set_progress(job_id, "ENRICH")
+        await self._maybe_delay()
+        return results
+
+    async def _enrich_one(
+        self,
+        provider: AIProvider,
+        record: dict[str, Any],
+        payload: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """Enrich one record; ``None`` when nothing usable came back."""
+        try:
+            industry = await provider.classify_company(
+                record, str(record.get("industry") or "")
+            )
+            info = await provider.extract_company_information(
+                payload.get("source_text", "")
+            )
+            summary = await provider.summarize_company(record)
+        except Exception as exc:  # AI must never fail the job
+            log.warning(
+                "AI enrichment failed for a record: %s", type(exc).__name__
+            )
+            return None
+        fields: dict[str, Any] = {}
+        if industry:
+            fields["industry_suggestion"] = industry
+        if isinstance(info, dict) and info:
+            fields["extracted"] = info
+        if summary:
+            fields["summary"] = summary
+        if not fields:
+            return None
+        return tag_ai_fields(fields)
+
     def _score(
         self, spec: dict[str, Any], unique: list[dict[str, Any]]
     ) -> list[tuple[int, dict[str, int]]]:
@@ -276,6 +401,7 @@ class PipelineRunner(JobRunner):
         invalid: list[tuple[int, list[dict[str, str]]]],
         raw_by_index: dict[int, dict[str, Any]],
         deduped,
+        enriched: list[dict[str, Any] | None],
         scored: list[tuple[int, dict[str, int]]],
     ) -> dict[str, int]:
         job_id = spec["job_id"]
@@ -316,10 +442,12 @@ class PipelineRunner(JobRunner):
             # 3. companies + results for the unique records (order preserved)
             accepted = 0
             score_iter = iter(scored)
+            enrich_iter = iter(enriched)  # aligned with `unique`, like `scored`
             for i, record in enumerate(valid):
                 if i in removed:
                     continue
                 score, factors = next(score_iter)
+                ai_fields = next(enrich_iter)
                 company = models.Company(
                     company_name=record.get("company_name") or "",
                     normalized_name=record.get("normalized_name"),
@@ -350,7 +478,8 @@ class PipelineRunner(JobRunner):
                         validation_status="valid",
                         validation_issues=[],
                         verification_status="unverified",
-                        ai_enriched=False,
+                        ai_enriched=ai_fields is not None,
+                        ai_fields=ai_fields,
                         dedupe_status=(
                             "needs_review" if i in needs_review else "unique"
                         ),

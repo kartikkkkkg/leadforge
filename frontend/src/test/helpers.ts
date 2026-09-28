@@ -99,12 +99,13 @@ export function jobSummary(overrides: Partial<JobSummary> = {}): JobSummary {
   };
 }
 
-export function providersHealth(): ProvidersHealth {
+export function providersHealth(overrides: Partial<ProvidersHealth> = {}): ProvidersHealth {
   return {
     demo: { name: "DemoProvider", status: "available", detail: "Ready (offline synthetic data)." },
     http: { name: "HTTP provider", status: "not_configured", detail: "LEADFORGE_HTTP_BASE_URL is not set." },
     ai: { name: "AI provider", status: "disabled", detail: "AI enrichment disabled." },
     database: { name: "Database", status: "available", detail: "Connected (sqlite)." },
+    ...overrides,
   };
 }
 

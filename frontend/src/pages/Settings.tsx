@@ -159,12 +159,22 @@ export default function Settings() {
           <div className="provider-grid">
             {ORDER.map((k) => {
               const p = health[k];
+              const aiEnabled = k === "ai" && p.status === "configured";
               return (
                 <div key={k} className="provider-card">
                   <div className="provider-head">
                     <strong>{p.name}</strong>
                     <StatusBadge status={p.status} />
                   </div>
+                  {k === "ai" ? (
+                    <p className="muted">
+                      AI enrichment:{" "}
+                      <strong>{aiEnabled ? "Enabled" : "Disabled"}</strong> —{" "}
+                      {aiEnabled
+                        ? "jobs created with AI enrichment will add AI-derived fields."
+                        : "jobs run without AI-derived fields."}
+                    </p>
+                  ) : null}
                   <p className="muted">{p.detail}</p>
                 </div>
               );

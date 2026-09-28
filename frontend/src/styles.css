@@ -374,3 +374,9 @@ code { background: var(--surface); padding: 0.1em 0.35em; border-radius: 4px; fo
   border-radius: 8px;
   background: var(--ok-bg);
 }
+
+/* ---- AI enrichment ---- */
+.check-label { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; cursor: pointer; }
+.check-label input[type="checkbox"] { width: 1rem; height: 1rem; }
+.ai-subfields { margin: 0; padding-left: 1rem; list-style: disc; }
+.ai-subfields li { margin: 0.15rem 0; }

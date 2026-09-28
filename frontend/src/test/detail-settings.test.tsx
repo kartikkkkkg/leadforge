@@ -44,6 +44,34 @@ describe("RecordDetail", () => {
     await waitFor(() => expect(screen.getByText("Result not found")).toBeInTheDocument());
     expect(screen.getByText("Error code: result_not_found")).toBeInTheDocument();
   });
+
+  it("renders the AI-derived section with tagged fields when enriched", async () => {
+    mockRoutes([
+      [
+        "/results/result-1",
+        result({
+          ai_enriched: true,
+          ai_fields: {
+            summary: { value: "An AI-generated summary.", ai_derived: true },
+            industry_suggestion: { value: "Jewelry Stores", ai_derived: true },
+          },
+        }),
+      ],
+    ]);
+    setup();
+    await waitFor(() => expect(screen.getByText("Acme SaaS Pvt Ltd")).toBeInTheDocument());
+    expect(screen.getByRole("heading", { name: /AI-derived/ })).toBeInTheDocument();
+    expect(screen.getByText("not verified")).toBeInTheDocument();
+    expect(screen.getByText("An AI-generated summary.")).toBeInTheDocument();
+    expect(screen.getAllByText("AI")).not.toHaveLength(0);
+  });
+
+  it("hides the AI-derived section when not enriched", async () => {
+    mockRoutes([["/results/result-1", result({ ai_enriched: false, ai_fields: null })]]);
+    setup();
+    await waitFor(() => expect(screen.getByText("Acme SaaS Pvt Ltd")).toBeInTheDocument());
+    expect(screen.queryByRole("heading", { name: /AI-derived/ })).not.toBeInTheDocument();
+  });
 });
 
 describe("Settings", () => {
@@ -57,9 +85,28 @@ describe("Settings", () => {
     await waitFor(() => expect(screen.getByText("DemoProvider")).toBeInTheDocument());
     expect(screen.getAllByText("Available")).toHaveLength(2); // demo + database
     expect(screen.getByText("Not configured")).toBeInTheDocument();
-    expect(screen.getByText("Disabled")).toBeInTheDocument();
+    expect(screen.getAllByText("Disabled")).toHaveLength(2); // ai badge + AI enrichment indicator
+    expect(screen.getByText(/AI enrichment:/)).toHaveTextContent(/Disabled/);
     // never shows credentials
     expect(document.body.textContent).not.toMatch(/LEADFORGE_HTTP_API_KEY/i);
+  });
+
+  it("shows the AI enrichment indicator as Enabled when configured", async () => {
+    mockRoutes([
+      [
+        "/providers/health",
+        providersHealth({
+          ai: { name: "AI provider", status: "configured", detail: "Key set." },
+        }),
+      ],
+    ]);
+    render(
+      <MemoryRouter>
+        <Settings />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText(/AI enrichment:/)).toBeInTheDocument());
+    expect(screen.getByText(/AI enrichment:/)).toHaveTextContent(/Enabled/);
   });
 
   it("shows an error state when health check fails", async () => {

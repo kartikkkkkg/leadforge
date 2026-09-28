@@ -89,6 +89,21 @@ provider is affected; use `0` for tests/headless runs.
 
 **Export is intentionally deferred** — no export endpoint or download button exists yet.
 
+## AI enrichment (optional)
+
+The **New Research** form has an *Enable AI enrichment* checkbox (`enable_ai` in the API).
+The pipeline then runs an 8-stage flow with EXTRACT and ENRICH:
+
+`DISCOVER → EXTRACT → NORMALIZE → VALIDATE → DEDUPLICATE → ENRICH → SCORE → STORE`
+
+- **No key, no AI:** the default `NullAIProvider` is disabled — ENRICH is a no-op and jobs
+  complete normally with `ai_enriched: false`. The app is fully usable without any key.
+- **With `LEADFORGE_LLM_API_KEY` set:** the LLM provider may add `ai_fields` to results.
+  Every value is tagged `{"value": ..., "ai_derived": true}` and shown in the record detail
+  under a clearly-labeled **AI-derived (not verified)** section.
+- AI never modifies normalized records, validation, deduplication, or completeness scores;
+  an AI failure never fails a job. Settings shows **AI enrichment: Enabled/Disabled** honestly.
+
 All synthetic data uses reserved domains (`example.com`), fictional `555-01XX` phone
 numbers, and role-based emails only. It is never presented as real. See
 [`docs/demo-guide.md`](docs/demo-guide.md) for the canonical walkthrough.

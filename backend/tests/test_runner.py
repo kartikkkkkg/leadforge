@@ -133,9 +133,11 @@ class TestSuccessfulJob:
         run(engine, job_id, on_progress=lambda stage, snap: seen.append(stage))
         assert seen == [
             "DISCOVER",
+            "EXTRACT",
             "NORMALIZE",
             "VALIDATE",
             "DEDUPLICATE",
+            "ENRICH",
             "SCORE",
             "STORE",
             "DONE",

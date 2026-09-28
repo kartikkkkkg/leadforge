@@ -1,11 +1,13 @@
 /** Pipeline progress stepper. Stages mirror the backend runner:
- *  DISCOVER → NORMALIZE → VALIDATE → DEDUPLICATE → SCORE → STORE → DONE.
+ *  DISCOVER → EXTRACT → NORMALIZE → VALIDATE → DEDUPLICATE → ENRICH → SCORE → STORE → DONE.
  */
 const STAGES = [
   "DISCOVER",
+  "EXTRACT",
   "NORMALIZE",
   "VALIDATE",
   "DEDUPLICATE",
+  "ENRICH",
   "SCORE",
   "STORE",
   "DONE",

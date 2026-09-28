@@ -12,6 +12,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from .. import models
+from ..ai import AIProvider
 from ..db import get_engine, session_scope
 from ..pipeline.runner import (
     JobNotFoundError,
@@ -84,12 +85,14 @@ async def run_job(
     job_id: str,
     engine=None,
     provider: ResearchProvider | None = None,
+    ai_provider: AIProvider | None = None,
     delay_ms: int | None = None,
     on_progress: ProgressCallback | None = None,
 ) -> JobResult:
     """Execute the pipeline for ``job_id``.
 
     * ``provider`` overrides the job's configured provider (tests, ops).
+    * ``ai_provider`` overrides the resolved AI provider (tests use mocks).
     * ``delay_ms`` overrides the job's ``demo_delay_ms`` (tests use 0).
     * Re-raises after recording the failure on the job — never swallows.
     """
@@ -103,6 +106,7 @@ async def run_job(
     runner = PipelineRunner(
         engine=eng,
         provider=provider,
+        ai_provider=ai_provider,
         delay_ms=delay_ms,
         on_progress=on_progress,
     )

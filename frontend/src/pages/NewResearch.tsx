@@ -35,6 +35,7 @@ export default function NewResearch() {
   const [keywords, setKeywords] = useState("");
   const [requestedLeads, setRequestedLeads] = useState<number>(50);
   const [provider, setProvider] = useState("demo");
+  const [enableAi, setEnableAi] = useState(false);
   const [demoDelayMs, setDemoDelayMs] = useState("120");
   const [health, setHealth] = useState<ProvidersHealth | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -77,6 +78,7 @@ export default function NewResearch() {
         keywords: keywords.trim() || null,
         requested_leads: requestedLeads as JobCreate["requested_leads"],
         provider,
+        enable_ai: enableAi,
         demo_delay_ms: Number(demoDelayMs),
       };
       const job = await api.createJob(payload);
@@ -237,6 +239,23 @@ export default function NewResearch() {
             Only affects the demo provider: pauses the pipeline between stages so progress is
             visible. 0 disables the pause; tests and headless runs use 0.
           </p>
+
+          <div className="form-field">
+            <label htmlFor="enable_ai" className="check-label">
+              <input
+                id="enable_ai"
+                type="checkbox"
+                checked={enableAi}
+                onChange={(e) => setEnableAi(e.target.checked)}
+              />
+              Enable AI enrichment (optional)
+            </label>
+            <p className="form-note" id="enable-ai-hint">
+              {health?.ai?.status === "configured"
+                ? "AI enrichment is configured on the server — this job will add AI-derived fields, clearly tagged and never treated as verified facts."
+                : "AI enrichment is not configured on the server (no API key) — the job will run normally with no AI-derived fields."}
+            </p>
+          </div>
 
           {submitError ? (
             <ErrorBox error={submitError} />

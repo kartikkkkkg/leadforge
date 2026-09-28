@@ -18,6 +18,7 @@ from sqlalchemy import func, or_, text
 from sqlalchemy.orm import Session
 
 from . import models
+from .ai import get_ai_provider
 from .db import session_scope
 from .pipeline.runner import JobNotFoundError
 from .providers import DemoProvider, HttpApiProvider, NotConfiguredError, get_provider
@@ -111,14 +112,35 @@ def providers_health(request: Request) -> ProvidersHealth:
         database = ProviderHealth(
             name="database", status="error", detail="Database unreachable."
         )
+    """AI health is honest about configuration: ``configured`` means an API key is
+    present (no probe call is made — the provider is only contacted during a
+    job that requested AI); ``not_configured`` means the disabled default
+    NullAIProvider is active and the app is fully usable without AI.
+    """
+    ai_provider = get_ai_provider()
+    if ai_provider.enabled:
+        ai = ProviderHealth(
+            name="ai",
+            status="configured",
+            detail=(
+                "AI enrichment is enabled (LLM API key configured). The "
+                "provider is only contacted for jobs created with AI "
+                "enrichment enabled; no probe call was made."
+            ),
+        )
+    else:
+        ai = ProviderHealth(
+            name="ai",
+            status="not_configured",
+            detail=(
+                "AI enrichment is not configured (NullAIProvider default). "
+                "Jobs run normally with no AI-derived fields."
+            ),
+        )
     return ProvidersHealth(
         demo=DemoProvider().health(),
         http=HttpApiProvider().health(),
-        ai=ProviderHealth(
-            name="ai",
-            status="not_configured",
-            detail="AI enrichment is not implemented in this phase.",
-        ),
+        ai=ai,
         database=database,
     )
 

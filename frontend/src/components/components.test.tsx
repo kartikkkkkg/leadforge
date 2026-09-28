@@ -58,12 +58,31 @@ describe("PipelineStages", () => {
   it("marks stages before the current one done and the current one active", () => {
     render(<PipelineStages stage="VALIDATE" status="running" />);
     const items = screen.getAllByRole("listitem");
-    expect(items).toHaveLength(7); // 6 stages + DONE
+    expect(items).toHaveLength(9); // 8 stages + DONE
     expect(items[0]).toHaveClass("is-done"); // DISCOVER
-    expect(items[1]).toHaveClass("is-done"); // NORMALIZE
-    expect(items[2]).toHaveClass("is-current"); // VALIDATE
-    expect(items[2]).toHaveAttribute("aria-current", "step");
-    expect(items[3]).not.toHaveClass("is-done");
+    expect(items[1]).toHaveClass("is-done"); // EXTRACT
+    expect(items[2]).toHaveClass("is-done"); // NORMALIZE
+    expect(items[3]).toHaveClass("is-current"); // VALIDATE
+    expect(items[3]).toHaveAttribute("aria-current", "step");
+    expect(items[4]).not.toHaveClass("is-done");
+  });
+
+  it("renders the ENRICH stage between DEDUPLICATE and SCORE", () => {
+    render(<PipelineStages stage="ENRICH" status="running" />);
+    const items = screen.getAllByRole("listitem");
+    const labels = items.map((i) => i.querySelector(".stage-name")?.textContent);
+    expect(labels).toEqual([
+      "DISCOVER",
+      "EXTRACT",
+      "NORMALIZE",
+      "VALIDATE",
+      "DEDUPLICATE",
+      "ENRICH",
+      "SCORE",
+      "STORE",
+      "DONE",
+    ]);
+    expect(items[5]).toHaveClass("is-current");
   });
 
   it("marks everything done on completion", () => {
@@ -76,6 +95,6 @@ describe("PipelineStages", () => {
   it("flags the failed stage", () => {
     render(<PipelineStages stage="STORE" status="failed" />);
     const items = screen.getAllByRole("listitem");
-    expect(items[5]).toHaveClass("is-failed");
+    expect(items[7]).toHaveClass("is-failed");
   });
 });
