@@ -170,6 +170,34 @@ class ValidationReport(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Demo dataset management
+# ---------------------------------------------------------------------------
+
+
+class DemoSeedResponse(BaseModel):
+    """Result of ``POST /api/demo/seed`` — how many synthetic companies exist."""
+
+    companies: int
+
+
+class DemoResetRequest(BaseModel):
+    """Body for ``POST /api/demo/reset``."""
+
+    reseed: bool = False
+
+
+class DemoResetResponse(BaseModel):
+    """Result of ``POST /api/demo/reset`` — deletion counts plus reseed info."""
+
+    jobs_deleted: int
+    results_deleted: int
+    rejected_records_deleted: int
+    companies_deleted: int
+    reseeded: bool
+    companies: int
+
+
+# ---------------------------------------------------------------------------
 # Providers & health
 # ---------------------------------------------------------------------------
 

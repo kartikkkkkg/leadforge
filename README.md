@@ -18,7 +18,7 @@ scored, exportable dataset (CSV/XLSX) instead of a hand-built spreadsheet.
 ## 60-second overview
 
 - **What can I see?** Dashboard → research form → live pipeline → filterable results table →
-  per-record explainability view → styled Excel export.
+  per-record explainability view (styled Excel export deferred to a later phase).
 - **How do I run it?** `scripts/dev.sh` (SQLite, zero setup) or `docker compose up`.
 - **Demo?** `make seed-demo && make run-demo` — 100 synthetic companies, no API keys.
 - **Stack:** FastAPI + SQLAlchemy + Pandas + openpyxl · React + TypeScript + Vite ·
@@ -75,12 +75,23 @@ is a coarse stage milestone, not an exact completion estimate.
 
 ```bash
 make seed-demo   # load 100 synthetic companies (clearly labeled SYNTHETIC)
-make run-demo    # run the full pipeline headless
+make run-demo   # run the full pipeline headless
 make reset-demo  # wipe demo data
 ```
 
+Or use the UI: **Settings → Demo data** has *Seed demo data*, *Reset demo data*
+(with confirmation), and *Reset + reseed*. Seeding is idempotent and never touches
+research-job results; reset wipes jobs, results, rejected records, and companies.
+
+The **New Research** form has a *Demo delay (ms)* field (default `120`, `0` disables):
+it pauses between real pipeline stages so progress is visibly staged. Only the Demo
+provider is affected; use `0` for tests/headless runs.
+
+**Export is intentionally deferred** — no export endpoint or download button exists yet.
+
 All synthetic data uses reserved domains (`example.com`), fictional `555-01XX` phone
-numbers, and role-based emails only. It is never presented as real.
+numbers, and role-based emails only. It is never presented as real. See
+[`docs/demo-guide.md`](docs/demo-guide.md) for the canonical walkthrough.
 
 ## Frontend
 
@@ -98,7 +109,8 @@ npm run dev     # vite dev server on :5173, proxies /api -> localhost:8000
 Pages: `/dashboard` (job stats + provider health), `/research/new` (research form),
 `/research/:id` (live pipeline progress, polls until terminal), `/results/:id`
 (server-side search/filter/sort/paginate + validation report), `/results/:id/record/:resultId`
-(record detail: raw / normalized / derived), `/settings` (provider health).
+(record detail: normalized / derived data, synthetic badge, "validation is not verification"), `/settings`
+(provider health + demo data seed/reset).
 
 Run the backend first (`leadforge serve`, default `http://localhost:8000`); the dev
 server proxies `/api` to it. Demo provider data is always badged SYNTHETIC.

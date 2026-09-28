@@ -9,12 +9,19 @@ export function validateResearchForm(values: {
   industry: string;
   country: string;
   requested_leads: number;
+  demo_delay_ms?: string;
 }): Record<string, string> {
   const errors: Record<string, string> = {};
   if (!values.industry.trim()) errors.industry = "Industry is required.";
   if (!values.country.trim()) errors.country = "Country is required.";
   if (!LEAD_COUNTS.includes(values.requested_leads as (typeof LEAD_COUNTS)[number])) {
     errors.requested_leads = "Choose 10, 50, 100, or 500 leads.";
+  }
+  if (values.demo_delay_ms !== undefined) {
+    const n = Number(values.demo_delay_ms);
+    if (!Number.isInteger(n) || n < 0 || n > 5000) {
+      errors.demo_delay_ms = "Demo delay must be a whole number of ms between 0 and 5000.";
+    }
   }
   return errors;
 }
@@ -28,6 +35,7 @@ export default function NewResearch() {
   const [keywords, setKeywords] = useState("");
   const [requestedLeads, setRequestedLeads] = useState<number>(50);
   const [provider, setProvider] = useState("demo");
+  const [demoDelayMs, setDemoDelayMs] = useState("120");
   const [health, setHealth] = useState<ProvidersHealth | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<unknown>(null);
@@ -50,7 +58,12 @@ export default function NewResearch() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const errors = validateResearchForm({ industry, country, requested_leads: requestedLeads });
+    const errors = validateResearchForm({
+      industry,
+      country,
+      requested_leads: requestedLeads,
+      demo_delay_ms: demoDelayMs,
+    });
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
     setSubmitting(true);
@@ -64,6 +77,7 @@ export default function NewResearch() {
         keywords: keywords.trim() || null,
         requested_leads: requestedLeads as JobCreate["requested_leads"],
         provider,
+        demo_delay_ms: Number(demoDelayMs),
       };
       const job = await api.createJob(payload);
       navigate(`/research/${job.id}`);
@@ -203,6 +217,26 @@ export default function NewResearch() {
               fail at discovery.
             </p>
           ) : null}
+
+          {field(
+            "demo_delay_ms",
+            "Demo delay (ms)",
+            <input
+              id="demo_delay_ms"
+              type="number"
+              min={0}
+              max={5000}
+              step={10}
+              value={demoDelayMs}
+              onChange={(e) => setDemoDelayMs(e.target.value)}
+              aria-invalid={!!fieldErrors.demo_delay_ms}
+              aria-describedby="demo-delay-hint"
+            />,
+          )}
+          <p className="form-note" id="demo-delay-hint">
+            Only affects the demo provider: pauses the pipeline between stages so progress is
+            visible. 0 disables the pause; tests and headless runs use 0.
+          </p>
 
           {submitError ? (
             <ErrorBox error={submitError} />

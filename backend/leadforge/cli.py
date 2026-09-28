@@ -1,17 +1,88 @@
 """LeadForge command-line interface.
 
-Commands (Phase 2: argument parsing only — behavior lands in later phases):
+Commands:
     seed-demo   load the 100-company synthetic dataset
-    reset-demo  wipe demo data
+    reset-demo  wipe demo data (``--reseed`` to re-seed afterwards)
     run-demo    run the research pipeline headless
-    export      export a completed job's dataset
+    export      export a completed job's dataset (not implemented yet)
     serve       run the API server
-    worker      run the background job worker (Phase 6)
+    worker      run the background job worker (not implemented; Phase 6 uses
+                in-process BackgroundTasks instead)
 """
 
 from __future__ import annotations
 
 import argparse
+import asyncio
+
+
+def _engine_with_tables():
+    """Engine with all tables created (CLI entry point, no app lifespan)."""
+    from .db import get_engine, init_db
+
+    engine = get_engine()
+    init_db(engine)
+    return engine
+
+
+def _cmd_seed_demo(args: argparse.Namespace) -> int:
+    from .db import session_scope
+    from .services import demo as demo_service
+
+    engine = _engine_with_tables()
+    with session_scope(engine) as session:
+        count = demo_service.seed_demo_companies(session)
+    print(f"Seeded {count} synthetic companies (demo dataset).")
+    return 0
+
+
+def _cmd_reset_demo(args: argparse.Namespace) -> int:
+    from .db import session_scope
+    from .services import demo as demo_service
+
+    engine = _engine_with_tables()
+    with session_scope(engine) as session:
+        outcome = demo_service.reset_demo_data(session, reseed=args.reseed)
+    print(
+        f"Reset demo data: {outcome['jobs_deleted']} jobs, "
+        f"{outcome['results_deleted']} results, "
+        f"{outcome['rejected_records_deleted']} rejected records, "
+        f"{outcome['companies_deleted']} companies deleted."
+    )
+    if outcome["reseeded"]:
+        print(f"Re-seeded {outcome['companies']} synthetic companies.")
+    return 0
+
+
+def _cmd_run_demo(args: argparse.Namespace) -> int:
+    from .db import session_scope
+    from .schemas import JobCreate
+    from .services import jobs as job_service
+
+    engine = _engine_with_tables()
+    create = JobCreate(
+        industry=args.industry,
+        country=args.country,
+        region=args.region,
+        city=args.city,
+        keywords=args.keywords,
+        requested_leads=args.leads,
+        provider="demo",
+        demo_delay_ms=0 if args.no_delay else 120,
+    )
+    with session_scope(engine) as session:
+        job = job_service.create_job(session, create)
+        session.commit()
+        job_id = job.id
+    print(f"Running demo research job {job_id} "
+          f"({create.industry} / {create.country}, {create.requested_leads} leads)…")
+    result = asyncio.run(job_service.run_job(job_id, engine=engine))
+    print(
+        f"Job {result.job_id} {result.status}: "
+        f"discovered={result.discovered} accepted={result.accepted} "
+        f"duplicates={result.duplicates} invalid={result.invalid}"
+    )
+    return 0
 
 
 def _skeleton_handler(args: argparse.Namespace) -> int:
@@ -22,9 +93,15 @@ def _skeleton_handler(args: argparse.Namespace) -> int:
 
         uvicorn.run(app, host=args.host, port=args.port)
         return 0
+    if args.command == "seed-demo":
+        return _cmd_seed_demo(args)
+    if args.command == "reset-demo":
+        return _cmd_reset_demo(args)
+    if args.command == "run-demo":
+        return _cmd_run_demo(args)
     print(
-        f"LeadForge Phase 2 skeleton: '{args.command}' "
-        "will be implemented in a later phase."
+        f"LeadForge: '{args.command}' "
+        "is not implemented in this phase."
     )
     return 0
 

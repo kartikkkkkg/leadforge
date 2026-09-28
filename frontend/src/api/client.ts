@@ -167,6 +167,19 @@ export interface HealthResponse {
   version: string;
 }
 
+export interface DemoSeedResponse {
+  companies: number;
+}
+
+export interface DemoResetResponse {
+  jobs_deleted: number;
+  results_deleted: number;
+  rejected_records_deleted: number;
+  companies_deleted: number;
+  reseeded: boolean;
+  companies: number;
+}
+
 /* ------------------------------------------------------------------ */
 /* Errors                                                              */
 /* ------------------------------------------------------------------ */
@@ -230,6 +243,16 @@ export const api = {
   health: () => request<HealthResponse>("/health"),
 
   providersHealth: () => request<ProvidersHealth>("/providers/health"),
+
+  seedDemo: () =>
+    request<DemoSeedResponse>("/demo/seed", { method: "POST" }),
+
+  resetDemo: (reseed = false) =>
+    request<DemoResetResponse>("/demo/reset", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reseed }),
+    }),
 
   createJob: (payload: JobCreate) =>
     request<JobRead>("/research/jobs", {

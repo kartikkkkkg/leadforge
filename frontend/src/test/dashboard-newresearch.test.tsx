@@ -131,4 +131,53 @@ describe("NewResearch", () => {
     );
     expect(screen.getByText("Error code: provider_not_configured")).toBeInTheDocument();
   });
+
+  it("sends the configured demo delay in the job payload", async () => {
+    const bodies: unknown[] = [];
+    mockRoutes([
+      ["/providers/health", providersHealth()],
+      [
+        "/research/jobs",
+        (_url: string, init?: RequestInit) => {
+          bodies.push(JSON.parse(String(init?.body)));
+          return jsonResponse(
+            { id: "job-9", status: "queued", progress_pct: 0, stage: null, industry: "SaaS" },
+            202,
+          );
+        },
+      ],
+    ]);
+    render(
+      <MemoryRouter initialEntries={["/research/new"]}>
+        <Routes>
+          <Route path="/research/new" element={<NewResearch />} />
+          <Route path="/research/:id" element={<div>JOB PAGE</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByLabelText(/Industry/), { target: { value: "SaaS" } });
+    fireEvent.change(screen.getByLabelText(/Country/), { target: { value: "India" } });
+    fireEvent.change(screen.getByLabelText(/Demo delay/), { target: { value: "0" } });
+    fireEvent.click(screen.getByRole("button", { name: "Start Research" }));
+    await waitFor(() => expect(screen.getByText("JOB PAGE")).toBeInTheDocument());
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]).toMatchObject({ demo_delay_ms: 0 });
+  });
+
+  it("rejects an out-of-range demo delay without submitting", async () => {
+    const spy = mockRoutes([[ "/providers/health", providersHealth() ]]);
+    render(
+      <MemoryRouter>
+        <NewResearch />
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByLabelText(/Industry/), { target: { value: "SaaS" } });
+    fireEvent.change(screen.getByLabelText(/Country/), { target: { value: "India" } });
+    fireEvent.change(screen.getByLabelText(/Demo delay/), { target: { value: "99999" } });
+    fireEvent.click(screen.getByRole("button", { name: "Start Research" }));
+    expect(
+      await screen.findByText("Demo delay must be a whole number of ms between 0 and 5000."),
+    ).toBeInTheDocument();
+    expect(spy.mock.calls.some(([, init]) => (init as RequestInit)?.method === "POST")).toBe(false);
+  });
 });

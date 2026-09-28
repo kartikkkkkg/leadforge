@@ -351,3 +351,26 @@ code { background: var(--surface); padding: 0.1em 0.35em; border-radius: 4px; fo
   .nav-link { padding: 0.5rem 0.6rem; }
   .page-head h1 { font-size: 1.3rem; }
 }
+
+/* ---- demo controls (settings) ---- */
+.demo-controls {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+.confirm-box {
+  margin-top: 1rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--bad);
+  border-radius: 8px;
+  background: var(--bad-bg);
+}
+.confirm-box p { margin: 0 0 0.5rem; }
+.demo-message {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--ok);
+  border-radius: 8px;
+  background: var(--ok-bg);
+}

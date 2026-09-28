@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import RecordDetail from "../pages/RecordDetail";
@@ -73,5 +73,118 @@ describe("Settings", () => {
     );
     await waitFor(() => expect(screen.getByText("Couldn't load this view")).toBeInTheDocument());
     expect(screen.getByText("Error code: network_error")).toBeInTheDocument();
+  });
+});
+
+describe("Settings demo controls", () => {
+  const resetResponse = {
+    jobs_deleted: 2,
+    results_deleted: 18,
+    rejected_records_deleted: 3,
+    companies_deleted: 25,
+    reseeded: false,
+    companies: 0,
+  };
+
+  function setupDemo(routes: [string, unknown][] = []) {
+    const spy = mockRoutes([
+      ["/providers/health", providersHealth()],
+      ["/demo/seed", { companies: 100 }],
+      ["/demo/reset", resetResponse],
+      ...routes,
+    ]);
+    render(
+      <MemoryRouter>
+        <Settings />
+      </MemoryRouter>,
+    );
+    return spy;
+  }
+
+  it("seeds the demo dataset and shows the resulting count", async () => {
+    const spy = setupDemo();
+    await waitFor(() => expect(screen.getByText("Demo data")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Seed demo data" }));
+    await waitFor(() =>
+      expect(
+        screen.getByText("Seeded 100 synthetic companies into the demo dataset."),
+      ).toBeInTheDocument(),
+    );
+    const seedCalls = spy.mock.calls.filter(
+      ([url, init]) => String(url).includes("/demo/seed") && init?.method === "POST",
+    );
+    expect(seedCalls).toHaveLength(1);
+  });
+
+  it("requires confirmation before resetting, then shows deletion counts", async () => {
+    const spy = setupDemo();
+    await waitFor(() => expect(screen.getByText("Demo data")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Reset demo data" }));
+    // no request yet — confirmation first
+    expect(
+      spy.mock.calls.some(([url]) => String(url).includes("/demo/reset")),
+    ).toBe(false);
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Yes, reset" }));
+    await waitFor(() =>
+      expect(
+        screen.getByText(/Reset complete — deleted 2 jobs, 18 results, 3 rejected records/),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("cancels the reset without calling the API", async () => {
+    const spy = setupDemo();
+    await waitFor(() => expect(screen.getByText("Demo data")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Reset demo data" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(
+      spy.mock.calls.some(([url]) => String(url).includes("/demo/reset")),
+    ).toBe(false);
+  });
+
+  it("supports reset + reseed", async () => {
+    mockRoutes([
+      ["/providers/health", providersHealth()],
+      [
+        "/demo/reset",
+        { ...resetResponse, reseeded: true, companies: 100 },
+      ],
+    ]);
+    render(
+      <MemoryRouter>
+        <Settings />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText("Demo data")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Reset + reseed" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yes, reset" }));
+    await waitFor(() =>
+      expect(screen.getByText(/Re-seeded 100 synthetic companies/)).toBeInTheDocument(),
+    );
+  });
+
+  it("shows an error state when seeding fails", async () => {
+    mockRoutes([
+      ["/providers/health", providersHealth()],
+      ["/demo/seed", jsonResponse({ detail: "DB unavailable", code: "internal_error" }, 500)],
+    ]);
+    render(
+      <MemoryRouter>
+        <Settings />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText("Demo data")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Seed demo data" }));
+    await waitFor(() => expect(screen.getByText("DB unavailable")).toBeInTheDocument());
+    expect(screen.getByText("Error code: internal_error")).toBeInTheDocument();
+  });
+
+  it("labels demo data as synthetic", async () => {
+    setupDemo();
+    await waitFor(() => expect(screen.getByText("Demo data")).toBeInTheDocument());
+    const section = screen.getByRole("region", { name: "Demo data" });
+    expect(section.textContent).toMatch(/synthetic/i);
   });
 });

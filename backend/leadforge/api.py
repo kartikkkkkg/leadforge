@@ -22,6 +22,9 @@ from .db import session_scope
 from .pipeline.runner import JobNotFoundError
 from .providers import DemoProvider, HttpApiProvider, NotConfiguredError, get_provider
 from .schemas import (
+    DemoResetRequest,
+    DemoResetResponse,
+    DemoSeedResponse,
     HealthResponse,
     JobCreate,
     JobList,
@@ -32,6 +35,7 @@ from .schemas import (
     ResultsPage,
     ValidationReport,
 )
+from .services import demo as demo_service
 from .services import jobs as job_service
 
 log = logging.getLogger(__name__)
@@ -117,6 +121,42 @@ def providers_health(request: Request) -> ProvidersHealth:
         ),
         database=database,
     )
+
+
+# ---------------------------------------------------------------------------
+# demo dataset management
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/demo/seed",
+    response_model=DemoSeedResponse,
+    summary="Seed the synthetic demo dataset",
+    description="Insert the deterministic 100-company synthetic dataset "
+    "(the same generator DemoProvider uses) into the companies table. "
+    "Idempotent: existing synthetic companies are replaced, never duplicated. "
+    "All data is synthetic and labeled as such.",
+)
+def demo_seed(session: Session = Depends(get_session)) -> DemoSeedResponse:
+    count = demo_service.seed_demo_companies(session)
+    return DemoSeedResponse(companies=count)
+
+
+@router.post(
+    "/demo/reset",
+    response_model=DemoResetResponse,
+    summary="Reset demo data",
+    description="Wipe all demo data: research jobs (with their results and "
+    "rejected records) and companies. Pass `{\"reseed\": true}` to re-seed "
+    "the synthetic dataset afterwards.",
+)
+def demo_reset(
+    payload: DemoResetRequest | None = None,
+    session: Session = Depends(get_session),
+) -> DemoResetResponse:
+    reseed = payload.reseed if payload is not None else False
+    outcome = demo_service.reset_demo_data(session, reseed=reseed)
+    return DemoResetResponse(**outcome)
 
 
 # ---------------------------------------------------------------------------

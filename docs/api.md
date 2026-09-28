@@ -13,7 +13,7 @@ Base path: `/api`. Errors are structured as `{"detail": ..., "code": ...}`.
 | `GET` | `/api/research/jobs/{id}/results` | Query results: search, filter, sort, paginate |
 | `GET` | `/api/research/jobs/{id}/results/{result_id}` | Record detail (explainability view) |
 | `DELETE` | `/api/research/jobs/{id}/results/{result_id}` | Delete a record → `204` |
-| `POST` | `/api/research/jobs/{id}/export?format=csv\|xlsx` | Download the dataset |
+| `POST` | `/api/research/jobs/{id}/export?format=csv\|xlsx` | ⏸ Deferred — not implemented; no export endpoint exists yet |
 | `GET` | `/api/research/jobs/{id}/validation-report` | Validation/dedupe summary |
 | `GET` | `/api/providers/health` | Provider statuses (Settings page) |
 | `GET` | `/api/health` | Liveness probe |
