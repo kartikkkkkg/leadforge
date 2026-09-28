@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from . import models
 from .ai import get_ai_provider
 from .db import session_scope
-from .pipeline.runner import JobNotFoundError
+from .pipeline.runner import JobNotFoundError, JobNotRunnableError
 from .providers import DemoProvider, HttpApiProvider, NotConfiguredError, get_provider
 from .schemas import (
     DemoResetRequest,
@@ -37,6 +37,7 @@ from .schemas import (
     ValidationReport,
 )
 from .services import demo as demo_service
+from .services import export as export_service
 from .services import jobs as job_service
 
 log = logging.getLogger(__name__)
@@ -433,3 +434,46 @@ def validation_report(
         "duplicates": len(duplicate_rows),
         "issues_by_field": issues_by_field,
     }
+
+
+# ---------------------------------------------------------------------------
+# export
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/research/jobs/{job_id}/export",
+    summary="Export a job's results",
+    description="Download the job's accepted results as CSV (UTF-8 with BOM) "
+    "or styled XLSX (Leads + Research Summary + Parameters sheets). Only "
+    "`completed` jobs can be exported. The response is a real file download "
+    "(`Content-Disposition: attachment`).",
+    responses={
+        404: {"description": "Unknown job id."},
+        409: {"description": "Job is not completed yet."},
+    },
+)
+def export_job_results(
+    job_id: str,
+    format: Literal["csv", "xlsx"] = Query(
+        default="xlsx", description="Export format"
+    ),
+    session: Session = Depends(get_session),
+) -> Response:
+    job = _require_job(session, job_id)
+    if job.status != "completed":
+        raise JobNotRunnableError(
+            f"job {job_id!r} is '{job.status}'; only completed jobs can be exported"
+        )
+    rows = export_service.fetch_export_rows(session, job_id)
+    payload = (
+        export_service.render_csv(rows)
+        if format == "csv"
+        else export_service.render_xlsx(job, rows)
+    )
+    filename = export_service.export_filename(job, format)
+    return Response(
+        content=payload,
+        media_type=export_service.EXPORT_MEDIA_TYPES[format],
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

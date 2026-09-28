@@ -4,7 +4,7 @@ Commands:
     seed-demo   load the 100-company synthetic dataset
     reset-demo  wipe demo data (``--reseed`` to re-seed afterwards)
     run-demo    run the research pipeline headless
-    export      export a completed job's dataset (not implemented yet)
+    export      export a completed job's dataset (CSV or styled XLSX)
     serve       run the API server
     worker      run the background job worker (not implemented; Phase 6 uses
                 in-process BackgroundTasks instead)
@@ -85,6 +85,39 @@ def _cmd_run_demo(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_export(args: argparse.Namespace) -> int:
+    """Export a completed job's dataset using the shared export service."""
+    from .db import session_scope
+    from .services import export as export_service
+    from .services import jobs as job_service
+
+    engine = _engine_with_tables()
+    with session_scope(engine) as session:
+        job = job_service.get_job(session, args.job)
+        if job is None:
+            print(f"LeadForge: no research job {args.job!r}.")
+            return 1
+        if job.status != "completed":
+            print(
+                f"LeadForge: job {args.job!r} is '{job.status}'; "
+                "only completed jobs can be exported."
+            )
+            return 1
+        rows = export_service.fetch_export_rows(session, args.job)
+        payload = (
+            export_service.render_csv(rows)
+            if args.format == "csv"
+            else export_service.render_xlsx(job, rows)
+        )
+    with open(args.out, "wb") as fh:
+        fh.write(payload)
+    print(
+        f"Exported {len(rows)} records from job {job.id} "
+        f"to {args.out} ({args.format})."
+    )
+    return 0
+
+
 def _skeleton_handler(args: argparse.Namespace) -> int:
     if args.command == "serve":
         import uvicorn
@@ -99,6 +132,8 @@ def _skeleton_handler(args: argparse.Namespace) -> int:
         return _cmd_reset_demo(args)
     if args.command == "run-demo":
         return _cmd_run_demo(args)
+    if args.command == "export":
+        return _cmd_export(args)
     print(
         f"LeadForge: '{args.command}' "
         "is not implemented in this phase."
