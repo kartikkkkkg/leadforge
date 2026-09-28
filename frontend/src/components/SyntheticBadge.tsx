@@ -1,4 +1,11 @@
-// SyntheticBadge — SYNTHETIC demo-data label. Phase 8.
+/** Marks synthetic demo data — never presented as real. */
 export default function SyntheticBadge() {
-  return null;
+  return (
+    <span
+      className="badge tone-warn"
+      title="Synthetic demo data generated offline — not a real company."
+    >
+      Synthetic
+    </span>
+  );
 }

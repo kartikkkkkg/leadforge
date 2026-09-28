@@ -82,6 +82,27 @@ make reset-demo  # wipe demo data
 All synthetic data uses reserved domains (`example.com`), fictional `555-01XX` phone
 numbers, and role-based emails only. It is never presented as real.
 
+## Frontend
+
+React + TypeScript + Vite app in `frontend/` that talks to the real FastAPI backend
+(no mock data).
+
+```bash
+cd frontend
+npm install
+npm test        # vitest suite (38 tests, mocked fetch)
+npm run build   # tsc + production bundle
+npm run dev     # vite dev server on :5173, proxies /api -> localhost:8000
+```
+
+Pages: `/dashboard` (job stats + provider health), `/research/new` (research form),
+`/research/:id` (live pipeline progress, polls until terminal), `/results/:id`
+(server-side search/filter/sort/paginate + validation report), `/results/:id/record/:resultId`
+(record detail: raw / normalized / derived), `/settings` (provider health).
+
+Run the backend first (`leadforge serve`, default `http://localhost:8000`); the dev
+server proxies `/api` to it. Demo provider data is always badged SYNTHETIC.
+
 ## Project structure
 
 See [`DESIGN.md`](DESIGN.md) §1 for the full annotated tree.
