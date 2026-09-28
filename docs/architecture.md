@@ -1,7 +1,6 @@
 # Architecture
 
 > Expanded narrative for the diagram and module map in `../DESIGN.md` §1–§2.
-> (Full detail arrives with the implementation in Phases 3–10.)
 
 ## System overview
 

@@ -1,7 +1,6 @@
 # API Reference
 
-> Full endpoint behavior lands in Phase 6. Interactive docs: `GET /docs` (Swagger)
-> once the backend runs.
+> Interactive docs: `GET /docs` (Swagger) once the backend runs.
 
 Base path: `/api`. Errors are structured as `{"detail": ..., "code": ...}`.
 

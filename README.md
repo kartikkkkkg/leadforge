@@ -1,7 +1,9 @@
 # LeadForge — Automated B2B Lead Research & Data Enrichment Platform
 
-> **Status:** Phase 2 — repository skeleton. Application logic lands in Phases 3–15
-> per `DESIGN.md`. Nothing here runs end-to-end yet.
+> **Status:** Complete — all 14 build phases finished (staged research pipeline,
+> FastAPI API, React/TypeScript UI, CSV/XLSX export, Docker + PostgreSQL,
+> deterministic demo workflow, 25-point quality audit). Runs end-to-end via
+> `scripts/dev.sh` or `docker compose up`.
 
 LeadForge automates the repeatable parts of B2B lead research: describe the companies you
 want (industry, country, region, keywords), and it discovers, extracts, normalizes,
@@ -14,6 +16,31 @@ lead lists in spreadsheets.
 **The solution:** a staged data pipeline (discover → extract → normalize → validate →
 deduplicate → enrich → score → store → export) behind a clean dashboard, producing a
 scored, exportable dataset (CSV/XLSX) instead of a hand-built spreadsheet.
+
+## Who is this for
+
+LeadForge demonstrates production-style automation and data-engineering capability
+for B2B research workflows:
+
+- **Repeatable lead research** — describe target companies (industry, country,
+  region, keywords, lead count); the pipeline discovers, normalizes, validates,
+  deduplicates, scores, and exports structured lead lists.
+- **Data quality transparency** — every record carries validation status, issue
+  codes, dedupe state, and a 0–100 completeness score with High/Medium/Low bands;
+  per-record explainability shows normalized vs. derived data and score factors.
+- **API-driven workflows** — the full pipeline is available over REST (jobs,
+  results, filters, validation reports, CSV/XLSX export), plus a CLI and a
+  React/TypeScript dashboard.
+
+Relevant audiences: freelance data researchers, lead-generation specialists, sales
+operations / RevOps teams, and clients who need structured, auditable B2B research
+workflows rather than hand-built spreadsheets.
+
+**Honest limitations:** the bundled demo data is synthetic (labeled SYNTHETIC
+throughout); the HTTP provider is an integration skeleton for legitimate external
+APIs — there is no scraping engine, no CAPTCHA bypass, no bot evasion, and no
+private-data harvesting. Optional AI enrichment is explicitly labeled and never
+presents unverified output as fact.
 
 ## 60-second overview
 
@@ -34,7 +61,7 @@ scored, exportable dataset (CSV/XLSX) instead of a hand-built spreadsheet.
 - [`docs/data-privacy.md`](docs/data-privacy.md) — data & privacy considerations
 - [`docs/demo/`](docs/demo/) — demo video/screenshot capture checklist
 
-## Quick start (once implemented)
+## Quick start
 
 ```bash
 cp .env.example .env        # optional; SQLite works with zero config
@@ -120,7 +147,7 @@ React + TypeScript + Vite app in `frontend/` that talks to the real FastAPI back
 ```bash
 cd frontend
 npm install
-npm test        # vitest suite (55 tests, mocked fetch)
+npm test        # vitest suite (73 tests, mocked fetch)
 npm run build   # tsc + production bundle
 npm run dev     # vite dev server on :5173, proxies /api -> localhost:8000
 ```
@@ -138,14 +165,14 @@ server proxies `/api` to it. Demo provider data is always badged SYNTHETIC.
 
 See [`DESIGN.md`](DESIGN.md) §1 for the full annotated tree.
 
-## Test status (Phase 11 — test hardening)
+## Test status
 
 Full suite, measured 2026-09-28 — honest numbers, no thresholds chased:
 
 | Suite | Tests | Coverage | Command |
 |---|---|---|---|
-| Backend (`pytest`) | **273 passed** | **98%** statements (`pytest-cov`) | `cd backend && ../.venv/bin/python -m pytest tests --cov=leadforge` |
-| Frontend (`vitest`) | **55 passed** | **93.9%** statements / 85.6% branches (`@vitest/coverage-v8`) | `cd frontend && npx vitest run --coverage` |
+| Backend (`pytest`) | **300 passed** (3 skipped: opt-in PostgreSQL) | **98%** statements (`pytest-cov`) | `cd backend && ../.venv/bin/python -m pytest tests --cov=leadforge` |
+| Frontend (`vitest`) | **73 passed** | **93.9%** statements / 85.6% branches (`@vitest/coverage-v8`) | `cd frontend && npx vitest run --coverage` |
 | TypeScript | clean | — | `npx tsc --noEmit` |
 | Production build | passes | — | `npx vite build` |
 
