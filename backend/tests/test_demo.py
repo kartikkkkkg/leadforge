@@ -57,6 +57,9 @@ def _run_demo_job(engine, **overrides):
 
 
 class TestDemoSeed:
+    def test_dataset_size_matches_seed_contract(self):
+        assert demo_service.demo_dataset_size() == DATASET_SIZE == 100
+
     def test_seed_returns_100_companies(self, client, engine):
         resp = client.post("/api/demo/seed")
         assert resp.status_code == 200

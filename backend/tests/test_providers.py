@@ -56,6 +56,24 @@ class TestProviderInterface:
         assert health.name == "minimal"
         assert health.status == "unknown"
 
+    def test_base_to_dict_dumps_raw_record(self):
+        class Minimal(ResearchProvider):
+            name = "minimal"
+
+            async def search_companies(self, query, limit):
+                return []
+
+            async def get_company_details(self, ref):
+                return None
+
+            def extract_contacts(self, raw):
+                return ContactInfo()
+
+        raw = RawCompany(company_name="ABC", website="https://abc.example.com")
+        dumped = Minimal().to_dict(raw)
+        assert dumped == raw.model_dump()
+        assert dumped["company_name"] == "ABC"
+
     def test_factory(self):
         assert isinstance(get_provider("demo"), DemoProvider)
         assert isinstance(get_provider("http"), HttpApiProvider)

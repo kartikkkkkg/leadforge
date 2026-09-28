@@ -378,6 +378,22 @@ class TestValidationReport:
 
 
 class TestErrorHandling:
+    def test_not_runnable_maps_to_409(self, engine, monkeypatch):
+        import leadforge.api as api_module
+        from leadforge.pipeline.runner import JobNotRunnableError
+
+        def refuse(session, job_id):
+            raise JobNotRunnableError("job 'x' is 'completed'")
+
+        monkeypatch.setattr(api_module.job_service, "get_job", refuse)
+        app = create_app(engine=engine)
+        with TestClient(app, raise_server_exceptions=False) as quiet_client:
+            resp = quiet_client.get("/api/research/jobs/job-1")
+        assert resp.status_code == 409
+        body = resp.json()
+        assert body["code"] == "job_not_runnable"
+        assert "completed" in body["detail"]
+
     def test_unhandled_error_is_generic(self, engine, monkeypatch):
         import leadforge.api as api_module
 

@@ -227,6 +227,35 @@ describe("NewResearch", () => {
     expect(bodies[0]).toMatchObject({ enable_ai: false });
   });
 
+  it("explains the no-key behavior in the AI hint", async () => {
+    mockRoutes([["/providers/health", providersHealth()]]); // ai: disabled
+    render(
+      <MemoryRouter>
+        <NewResearch />
+      </MemoryRouter>,
+    );
+    await waitFor(() =>
+      expect(screen.getByText(/AI enrichment is not configured on the server/)).toBeInTheDocument(),
+    );
+  });
+
+  it("rejects an invalid lead count without submitting", async () => {
+    const spy = mockRoutes([["/providers/health", providersHealth()]]);
+    render(
+      <MemoryRouter>
+        <NewResearch />
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByLabelText(/Industry/), { target: { value: "SaaS" } });
+    fireEvent.change(screen.getByLabelText(/Country/), { target: { value: "India" } });
+    fireEvent.change(screen.getByLabelText(/Lead count/), { target: { value: "999" } });
+    fireEvent.click(screen.getByRole("button", { name: "Start Research" }));
+    expect(
+      await screen.findByText("Choose 10, 50, 100, or 500 leads."),
+    ).toBeInTheDocument();
+    expect(spy.mock.calls.some(([, init]) => (init as RequestInit)?.method === "POST")).toBe(false);
+  });
+
   it("rejects an out-of-range demo delay without submitting", async () => {
     const spy = mockRoutes([[ "/providers/health", providersHealth() ]]);
     render(

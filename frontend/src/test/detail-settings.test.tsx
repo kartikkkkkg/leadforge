@@ -72,6 +72,28 @@ describe("RecordDetail", () => {
     await waitFor(() => expect(screen.getByText("Acme SaaS Pvt Ltd")).toBeInTheDocument());
     expect(screen.queryByRole("heading", { name: /AI-derived/ })).not.toBeInTheDocument();
   });
+
+  it("degrades gracefully for null, empty, and scalar AI field values", async () => {
+    mockRoutes([
+      [
+        "/results/result-1",
+        result({
+          ai_enriched: true,
+          ai_fields: {
+            summary: { value: null, ai_derived: true },
+            extracted: { value: {}, ai_derived: true },
+            odd: { value: "plain", ai_derived: true },
+          } as unknown as Record<string, { value: string | null; ai_derived: boolean }>,
+        }),
+      ],
+    ]);
+    setup();
+    await waitFor(() => expect(screen.getByText("Acme SaaS Pvt Ltd")).toBeInTheDocument());
+    expect(screen.getByRole("heading", { name: /AI-derived/ })).toBeInTheDocument();
+    expect(screen.getByText("unknown")).toBeInTheDocument(); // null -> "unknown"
+    expect(screen.getAllByText("—").length).toBeGreaterThan(0); // empty object -> em dash
+    expect(screen.getByText("plain")).toBeInTheDocument(); // scalar passthrough
+  });
 });
 
 describe("Settings", () => {

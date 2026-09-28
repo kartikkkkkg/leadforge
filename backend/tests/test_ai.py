@@ -53,26 +53,33 @@ class ScriptedAIProvider(AIProvider):
     name = "scripted"
     enabled = True
 
-    def __init__(self, fail=False):
+    def __init__(self, fail=False, empty=False):
         self.fail = fail
+        self.empty = empty
         self.calls: list[tuple[str, dict]] = []
 
     async def classify_company(self, company, industry):
         self.calls.append(("classify", dict(company)))
         if self.fail:
             raise RuntimeError("boom")
+        if self.empty:
+            return None
         return f"AI:{industry or 'Unknown'}"
 
     async def extract_company_information(self, text):
         self.calls.append(("extract", {"text": text}))
         if self.fail:
             raise RuntimeError("boom")
+        if self.empty:
+            return {}
         return {"city": "Springfield", "note": None}
 
     async def summarize_company(self, company):
         self.calls.append(("summarize", dict(company)))
         if self.fail:
             raise RuntimeError("boom")
+        if self.empty:
+            return None
         return f"AI summary of {company.get('company_name')}"
 
 
@@ -305,6 +312,42 @@ class TestLLMProvider:
             assert "sk-secret-abc123" not in record.getMessage()
 
 
+    def test_classify_empty_industry_returns_none(self):
+        async def run():
+            chat = await _fake_chat_factory(json.dumps({"industry": "  "}))
+            p = LLMProvider(api_key="k", chat=chat)
+            assert await p.classify_company({"company_name": "Acme"}, "Jewelry") is None
+
+        asyncio.run(run())
+
+    def test_classify_missing_industry_key_returns_none(self):
+        async def run():
+            chat = await _fake_chat_factory(json.dumps({"other": "value"}))
+            p = LLMProvider(api_key="k", chat=chat)
+            assert await p.classify_company({"company_name": "Acme"}, "Jewelry") is None
+
+        asyncio.run(run())
+
+    def test_summarize_empty_summary_returns_none(self):
+        async def run():
+            chat = await _fake_chat_factory(json.dumps({"summary": ""}))
+            p = LLMProvider(api_key="k", chat=chat)
+            assert await p.summarize_company({"company_name": "Acme"}) is None
+
+        asyncio.run(run())
+
+    def test_parse_json_tolerates_markdown_code_fence(self):
+        async def run():
+            fenced = '```json\n{"industry": "Jewelry Stores"}\n```'
+            chat = await _fake_chat_factory(fenced)
+            p = LLMProvider(api_key="k", chat=chat)
+            assert await p.classify_company({"company_name": "Acme"}, "Jewelry") == (
+                "Jewelry Stores"
+            )
+
+        asyncio.run(run())
+
+
 class TestTagAIFiields:
     def test_wraps_each_field(self):
         tagged = tag_ai_fields({"summary": "hello", "city": None})
@@ -388,6 +431,15 @@ class TestEnrichStage:
             }
         # provider saw every accepted record exactly once per method
         assert len([c for c in provider.calls if c[0] == "summarize"]) == 10
+
+    def test_empty_ai_output_leaves_records_unenriched(self, engine):
+        provider = ScriptedAIProvider(empty=True)
+        result, job_id = _run_job(engine, ai_provider=provider)
+        assert result.status == "completed"
+        assert result.accepted == 10
+        for row in _results(engine, job_id):
+            assert row["ai_enriched"] is False
+            assert row["ai_fields"] is None
 
     def test_ai_does_not_touch_source_data_or_scores(self, engine):
         _plain, plain_id = _run_job(engine, enable_ai=False)

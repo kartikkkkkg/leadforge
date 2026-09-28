@@ -116,7 +116,7 @@ React + TypeScript + Vite app in `frontend/` that talks to the real FastAPI back
 ```bash
 cd frontend
 npm install
-npm test        # vitest suite (38 tests, mocked fetch)
+npm test        # vitest suite (55 tests, mocked fetch)
 npm run build   # tsc + production bundle
 npm run dev     # vite dev server on :5173, proxies /api -> localhost:8000
 ```
@@ -133,6 +133,22 @@ server proxies `/api` to it. Demo provider data is always badged SYNTHETIC.
 ## Project structure
 
 See [`DESIGN.md`](DESIGN.md) §1 for the full annotated tree.
+
+## Test status (Phase 11 — test hardening)
+
+Full suite, measured 2026-09-28 — honest numbers, no thresholds chased:
+
+| Suite | Tests | Coverage | Command |
+|---|---|---|---|
+| Backend (`pytest`) | **273 passed** | **98%** statements (`pytest-cov`) | `cd backend && ../.venv/bin/python -m pytest tests --cov=leadforge` |
+| Frontend (`vitest`) | **55 passed** | **93.9%** statements / 85.6% branches (`@vitest/coverage-v8`) | `cd frontend && npx vitest run --coverage` |
+| TypeScript | clean | — | `npx tsc --noEmit` |
+| Production build | passes | — | `npx vite build` |
+
+Backend gaps are defensive/unreachable lines (server entrypoint, lazy engine
+singleton, logging branches, abstract-method stubs). Frontend entry shells
+(`main.tsx`, `App.tsx`, `Layout.tsx`) are exercised via real-stack E2E, not unit
+tests. Coverage reports are generated locally and never committed (see `.gitignore`).
 
 ## License
 
